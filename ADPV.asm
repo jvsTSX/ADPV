@@ -727,7 +727,6 @@ ADPV_RegGen:
 	inc a
 @NoRingMod:
 	out [$FB], a
-
   ret
 
 
@@ -767,7 +766,9 @@ ADPV_CalcNote:
 
 
 
-
+;   /////////////////////////////////////////////////////////////////
+;  ///                           NOTE LUT                        ///
+; /////////////////////////////////////////////////////////////////
 ADPV_NoteLut:
 ; PV-1000's pitch formula is divider without +1 (like AY-3-8910) and inverted (00 = lowest)
 ; A4 = 432.5Hz
@@ -802,6 +803,10 @@ ADPV_NoteLut:
 .db $3E ; HAT 1B
 
 
+
+;   /////////////////////////////////////////////////////////////////
+;  ///                      RAM DEFINITIONS                      ///
+; /////////////////////////////////////////////////////////////////
 .define ADPV_CH_RAMIDXBLKSIZE = $1B
 
 .define MUS_WaitRows   = $0
@@ -849,9 +854,6 @@ ADPV_RAM_TempoCnt     db
 ADPV_RAM_TempoPos     db
 ADPV_RAM_TempoStatus  db ; nonzero = ok, step
 ADPV_RAM_ChannelCntDw db
-
-; /////////////////// CHANNEL 1 ///////////////////
-
 
 ; workflags = EOR--ADK: sound Enable; Overlay sound enable; Ringmod; Autocut enabled; Delay pending; Kill pending
 ; ringmod state from all channels are ORed together

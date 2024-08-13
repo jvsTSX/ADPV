@@ -17,6 +17,9 @@
   jp Start
 
 
+;   /////////////////////////////////////////////////////////////////
+;  ///                   IRQ AND CONTROLLER READ                 ///
+; /////////////////////////////////////////////////////////////////
 .ORG $38
 IRQ:
 	push af
@@ -36,76 +39,75 @@ IRQ:
   reti
 
 ScanKeys:
-    ld a, [InterCount]
-    cp a, 4
+	ld a, [InterCount]
+	cp a, 4
   jp z, @JoinKeys
   jp nc, IRQ@NoScan
-    or a, a
+	or a, a
   jp z, @JustSetKeysToFirstSet
 
-    dec a
-    push hl
-    ld hl, RawKeys0
-    add a, l
-    ld l, a
-    adc a, h
-    sub a, l
-    ld h, a
-    
-    in a, [$FD]
-    ld [hl], a
-    
-    ; select next keys
-    ld hl, InterCount
-    ld a, [hl]
-    inc [hl] ; increment counter
+	dec a
+	push hl
+	ld hl, RawKeys0
+	add a, l
+	ld l, a
+	adc a, h
+	sub a, l
+	ld h, a
 
-    dec a
-    ld l, a
-    ld a, %00000010
+	in a, [$FD]
+	ld [hl], a
+
+	; select next keys
+	ld hl, InterCount
+	ld a, [hl]
+	inc [hl] ; increment counter
+
+	dec a
+	ld l, a
+	ld a, %00000010
   jp z, @NoShift
-    rlca ; 0100
-    dec l
+	rlca ; 0100
+	dec l
   jp z, @NoShift
-    rlca ; 1000
+	rlca ; 1000
 
 @NoShift:
-    out [$FD], a ; select next controller bits
-    pop hl
-    pop af
-    ei
+	out [$FD], a ; select next controller bits
+	pop hl
+	pop af
+	ei
   reti
 
-@JoinKeys:
-    in a, [$FD]
-    ld [RawKeys3], a
+; vvv subroutines and functions vvv
+@JoinKeys: ;;;;;;;;;;;;;;;;;;;;;;;
+	in a, [$FD]
+	ld [RawKeys3], a
     
-    push hl
-    push bc
+	push hl
+	push bc
   call KeyBitJoin
-    ld [Player1Keys], a
+	ld [Player1Keys], a
   call KeyBitJoin
-    ld [Player2Keys], a
-    
-    ld hl, InterCount
-    inc [hl]
-    
-    pop bc
-    pop hl
+	ld [Player2Keys], a
+
+	ld hl, InterCount
+	inc [hl]
+
+	pop bc
+	pop hl
   jp IRQ@NoScan
 
-
-@JustSetKeysToFirstSet:
-    ld a, 1
-    out [$FD], a
-    ld [InterCount], a
+@JustSetKeysToFirstSet: ;;;;;;;;;;
+	ld a, 1
+	out [$FD], a
+	ld [InterCount], a
   jp IRQ@NoScan
 
-
-KeyBitJoin:
-    xor a, a
-    ld hl, RawKeys3
-    ld b, 4
+KeyBitJoin: ;;;;;;;;;;;;;;;;;;;;;;
+	xor a, a
+	ld hl, RawKeys3
+	ld b, 4
 @KeyBitLoopP1:
 	rrc [hl]
 	rra
@@ -118,6 +120,10 @@ KeyBitJoin:
 ; wtf is this casio
 
 
+
+;   /////////////////////////////////////////////////////////////////
+;  ///                       INITIAL SETUP                       ///
+; /////////////////////////////////////////////////////////////////
 .ORG $100
 Start:
 	di
@@ -127,30 +133,30 @@ Start:
 ; mainly copied from the hello world example i made for hello-world-everything
 	; setup ULA regs
 	ld a, $FF
-	out ($F8), a ; shut up all channels first
-	out ($F9), a
-	out ($FA), a
+	out [$F8], a ; shut up all channels first
+	out [$F9], a
+	out [$FA], a
 	ld a, %00000010
 	out [$FB], a ; enable sound
-	
-	ld a, %00000011 ; enable frame interrupt
-	out ($FC), a
-	
-	ld a, $FF
-	out ($FD), a
-	in a, ($FD)
-	
+
+	ld a, %00000011 ; enable frame and scan interrupts (MAME currently treats them as always on)
+	out [$FC], a
+
+	ld a, $FF ; unlatch both interrupts just in case
+	out [$FD], a
+	in a, [$FD]
+
 	ld a, $B8 ; tilemap and tile ram base address
-	out ($FE), a
-	
+	out [$FE], a
+
 	ld a, %00100000 ; tile rom base address, some configs and border
-	out ($FF), a
-	
+	out [$FF], a
+
 	ld bc, $B822
 	ld hl, $B822 ; tilemap
 	ld de, HwdStr
 PrintLinLoop:
-	ld a, (de)
+	ld a, [de]
 	inc de
 	or a, a
   jp z, EnterMain
@@ -163,7 +169,7 @@ PrintLinLoop:
 LineFeed:
 	ld bc, 32
 	add hl, bc
-	
+
 	ld a, [de]
 	inc de
 
@@ -175,35 +181,38 @@ LineFeed:
 	inc bc
   jp PrintLinLoop
 
-
 EnterMain:
 	ei
 	xor a, a
 	ld [MainFlags], a
-	out ($FD), a
-	ld (CountVar1), a
-	ld a, 4
-	ld (CountVar2), a
+	out [$FD], a
 
-	; SFX stuff
+	; setup SFX list
 	ld hl, TestSFXList
 	ld [ADPV_RAM_SFX_ListLocal], hl
-	
+
+	; make sure SFX is silent
 	ld a, $FF
 	ld [ADPV_RAM_Channel1+SFX_Req], a
-	
+
+	; setup music driver
 	ld hl, song_no999
   call ADPV_SETUP_MUSIC
 
+
+
+;   /////////////////////////////////////////////////////////////////
+;  ///                         MAIN LOOP                         ///
+; /////////////////////////////////////////////////////////////////
 Main:
 	halt
-	ld a, [MainFlags]
+	ld a, [MainFlags] ; check if V-Blank interrupt triggered
 	and a, %00000001
   jp z, Main
-	ld hl, MainFlags
+	ld hl, MainFlags ; reset the software flag
 	res 0, [hl]
 
-  call ADPV_RUN_MUSIC
+  call ADPV_RUN_MUSIC ; update music
 
 ; display keys pressed (by a standard controller) for P1 and P2
 	ld hl, $B9F1
@@ -243,11 +252,14 @@ Main:
 	ld ix, ADPV_RAM_Channel3
 	ld c, $FA
   call ADPV_RUN_SFX
-
   jp Main
 
 
-ButtonsSFXPlay:
+
+;   /////////////////////////////////////////////////////////////////
+;  ///                        SUBROUTINES                        ///
+; /////////////////////////////////////////////////////////////////
+ButtonsSFXPlay: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	xor a, b ; get difference
 	and a, b ; exclude difference from 1-to-0
 	ld b, 8
@@ -261,8 +273,7 @@ ButtonsSFXPlay:
   djnz @loop
   ret
 
-
-DispControls:
+DispControls: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	rlc c
 	ld a, ' '
   jp nc, @NoLetter
@@ -274,7 +285,12 @@ DispControls:
   djnz DispControls
   ret
 
+; sound driver
+.include "ADPV.asm"
 
+;   /////////////////////////////////////////////////////////////////
+;  ///                         DATA STUFF                        ///
+; /////////////////////////////////////////////////////////////////
 TestSFXList:
 .dw Example_SFX_0
 .dw Example_SFX_1
@@ -313,16 +329,20 @@ HwdStr:
 ; the original implementation in the hello world everything repo should not have this
 ; this value is read after linefeed (10) is read so the first line should not have this value
 
-.include "ADPV.asm"
+; music data
 .include "exsong_999.asm"
 .include "exsfx.asm"
 
-  .ORG $2000
-  .incbin "tiles.bin"
+; graphics
+.ORG $2000
+.incbin "tiles.bin"
 
+
+
+;   /////////////////////////////////////////////////////////////////
+;  ///                       RAM DEFINITIONS                     ///
+; /////////////////////////////////////////////////////////////////
 .RAMSECTION "Mainvars" BANK 0 SLOT 2
-CountVar1 db
-CountVar2 db
 InterCount db
 Player1Keys db
 Player2Keys db

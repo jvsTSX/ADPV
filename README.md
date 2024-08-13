@@ -12,7 +12,7 @@ The PV-1000 has a super simple and barebones sound source built into its ULA:
 - **Number of possible frequencies**: 63 frequencies, as frequency $3F silences the channel
 - **Other features**: global ring modulation, higher channels will XOR the lower channels as such: `1 <-2 <-3`
 
-Notes: Channels have certain volumes to them, channel 1 is the quiet, channel 2 is medium and channel 3 is loud.
+Note: Channels have certain volumes to them, channel 1 is the quiet, channel 2 is medium and channel 3 is loud.
 
 ## Building
 Make sure you have WLA-DX installed first! - https://github.com/vhelin/wla-dx
